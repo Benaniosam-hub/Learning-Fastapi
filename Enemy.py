@@ -14,9 +14,10 @@ class Enemy:
     def attack(self):
         print(f'enimes gonna get {self.attack_damage} damage cause thats our power while we attack them')
 
-    def get_name(self):
+    def special_attack(self):
+        return f'Enemy has no special attack'
+
+    def get_type_of_enemy(self):
         return self.__type_of_enemy
-
-
 
     
