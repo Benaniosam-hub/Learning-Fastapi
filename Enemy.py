@@ -17,7 +17,6 @@ class Enemy:
     def get_name(self):
         return self.__type_of_enemy
 
-get_the_enemy = Enemy('Zombie',10,1)
-print (get_the_enemy.get_name())
+
 
     
