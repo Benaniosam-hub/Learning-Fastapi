@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import Body, FastAPI
 
 app = FastAPI() # this allows uvicorn to identify that we create new fastapi 
 
@@ -29,3 +29,14 @@ async def read_category_by_query(book_author: str,category: str):
             book_to_return.append(book)
 
     return book_to_return
+
+
+@app.post("/books/create_book")
+async def create_book(new_book=Body()):
+    BOOKS.append(new_book)
+
+@app.put("/books/update_book")
+async def update_book(updated_book=Body()):
+    for i in range(len(BOOKS)):
+        if BOOKS[i].get('title').casefold() == update_book.get('title').casefold():
+            BOOKS[i] = updated_book
