@@ -8,7 +8,7 @@ BOOKS = [
     {'id':3,'title': 'Title Three', 'author': 'Author Three', 'category': 'history'},
     {'id':4,'title': 'Title Four', 'author': 'Author Four', 'category': 'math'},
     {'id':5,'title': 'Title Five', 'author': 'Author Five', 'category': 'math'},
-    {'id':6,'title': 'Title Six', 'author': 'Author Six', 'category': 'math'}
+    {'id':2,'title': 'Title Six', 'author': 'Author Two', 'category': 'math'}
 ]
 
 # GET INVOLVES TWO METHODS, PATH AND QUERY
@@ -55,3 +55,10 @@ async def delete_book(id: int):
             break
         return f"message: the book id {id} has been removed successfully"
     
+@app.get("/books/{author}")
+async def get_books_from_specific_author(author:str):
+    author_book=[]
+    for e in BOOKS:
+        if e.get('author') == author:
+            author_book.append(e)
+    return author_book
