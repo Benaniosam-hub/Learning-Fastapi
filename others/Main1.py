@@ -1,5 +1,5 @@
 from Enemy import *
-from Zombie import *
+from others.Zombie import *
 from Ogre import *
 
 def battle(e1: Enemy,e2: Enemy):
