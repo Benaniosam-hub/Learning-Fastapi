@@ -3,40 +3,55 @@ from fastapi import Body, FastAPI
 app = FastAPI() # this allows uvicorn to identify that we create new fastapi 
 
 BOOKS = [
-    {'title': 'Title One', 'author': 'Author One', 'category': 'science'},
-    {'title': 'Title Two', 'author': 'Author Two', 'category': 'science'},
-    {'title': 'Title Three', 'author': 'Author Three', 'category': 'history'},
-    {'title': 'Title Four', 'author': 'Author Four', 'category': 'math'},
-    {'title': 'Title Five', 'author': 'Author Five', 'category': 'math'},
-    {'title': 'Title Six', 'author': 'Author Six', 'category': 'math'}
+    {'id':1,'title': 'Title One', 'author': 'Author One', 'category': 'science'},
+    {'id':2,'title': 'Title Two', 'author': 'Author Two', 'category': 'science'},
+    {'id':3,'title': 'Title Three', 'author': 'Author Three', 'category': 'history'},
+    {'id':4,'title': 'Title Four', 'author': 'Author Four', 'category': 'math'},
+    {'id':5,'title': 'Title Five', 'author': 'Author Five', 'category': 'math'},
+    {'id':6,'title': 'Title Six', 'author': 'Author Six', 'category': 'math'}
 ]
 
+# GET INVOLVES TWO METHODS, PATH AND QUERY
 @app.get("/books")
 async def read_all_books():
     return BOOKS
 
-@app.get("/books/{book_title}")
-async def read_book(book_title: str):
+@app.get("/book/{id}") #PATH PARAMETER
+async def get_book_by_id(id: int):
     for book in BOOKS:
-        if book.get('title').casefold() == book_title.casefold():
+        if book.get('id') == id:
             return book
 
-@app.get("/books/{book_author}/")
-async def read_category_by_query(book_author: str,category: str):
-    book_to_return = []
+
+@app.get("/book/")  #QUERY PARAMETER
+async def read_category_by_query(category: str):
+    books = []
     for book in BOOKS:
-        if book.get('author').casefold() == book_author.casefold() and book.get('category').casefold() == category.casefold():
-            book_to_return.append(book)
+        if book.get('category').casefold() == category.casefold():
+            books.append(book)
+    return books
 
-    return book_to_return
 
-
-@app.post("/books/create_book")
+# POST METHOD TO CREATE NEW BOOK
+@app.post("/book/create_book")
 async def create_book(new_book=Body()):
     BOOKS.append(new_book)
 
-@app.put("/books/update_book")
+
+# PUT METHOD FOR UPDATE BOOKS
+@app.put("/book/update_book")
 async def update_book(updated_book=Body()):
     for i in range(len(BOOKS)):
-        if BOOKS[i].get('title').casefold() == update_book.get('title').casefold():
-            BOOKS[i] = updated_book
+        if BOOKS[i].get('id') == updated_book.get('id'):
+            BOOKS[i]=updated_book
+
+
+# DELETE IS TO DELETE THE EXISTING BOOKS BY ID
+@app.delete("/book/{id}")
+async def delete_book(id: int):
+    for x in range(len(BOOKS)):
+        if BOOKS[x].get('id') == id:
+            BOOKS.pop(x)
+            break
+        return f"message: the book id {id} has been removed successfully"
+    
