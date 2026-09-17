@@ -262,13 +262,18 @@ app = FastAPI()
 connection = None
 cursor = None
 
-# class Todo(BaseModel):
-#     title:str
-#     description:str
-#     priority:int
-#     complete:bool
-#     owner_id:int
 
+class Todo(BaseModel):
+    title: str
+    description: str
+    priority: int
+    complete: bool
+    owner_id: int
+
+class UpdateTodo(BaseModel):
+    title: str
+
+#CHECKING CONNECTION:
 @app.get("/")
 def home():
     return {
@@ -276,6 +281,7 @@ def home():
     }
 
 
+#GET ALL TODOS
 @app.get("/todos")
 async def get_todos():
 
@@ -304,8 +310,9 @@ async def get_todos():
             cursor.close()
 
 
+#GET TODOS BY QUERY PARAMETER
 @app.get("/todos/")
-async def get_todos_by_id(title: str):
+async def get_todos_by_query(title: str):
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -336,6 +343,8 @@ async def get_todos_by_id(title: str):
         if connection:
             cursor.close()
 
+
+#GET TODOS BY PATH PARAMETER
 @app.get("/todos/{id}")
 async def get_todos_by_id(id:int):
     connection = get_connection()
@@ -367,6 +376,120 @@ async def get_todos_by_id(id:int):
         if connection:
             connection.close()
 
+
+#POST CREATE NEW TODOS
+@app.post("/todos/create_todo")
+async def create_todos(todo: Todo):
+
+    connection= get_connection()
+    cursor=connection.cursor()
+
+    try:
+
+        cursor.execute(
+            '''
+            insert into todos
+            (title,description,priority,complete,owner_id)
+            values(%s,%s,%s,%s,%s)
+            ''',
+            (todo.title,
+             todo.description,
+             todo.priority,
+             todo.complete,
+             todo.owner_id)
+        )
+
+        connection.commit()
+
+        return{
+            "message":"todos created successfully"
+        }
+
+    except Exception as e:
+        return{
+            "error":str(e)
+        }
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+#UPDATE EXISTING TODOS
+@app.put("/todos/{id}")
+async def update_todos_title_by_id(id:int, todo:UpdateTodo):
+
+    connection= get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            '''
+            update todos set title = %s where id = %s
+            ''' ,
+            (todo.title,id)
+        )
+
+        connection.commit()
+
+        return{
+            "message": "todos updated successfully"
+        }
+
+    except Exception as e:
+        return{
+            "error": str(e)
+        }
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
+
+#DELETE TODOS
+@app.delete("/todos/{id}")
+async def delete_todos_by_id(id:int):
+
+    connection=get_connection()
+    cursor=connection.cursor()
+
+    try:
+        cursor.execute(
+            '''
+            delete from todos where id =%s
+            ''',
+            (id,)
+        )
+
+        connection.commit()
+
+        return{
+            "message": "todos deleted successfully"
+        }
+
+    except Exception as e:
+        return{
+            "error": str(e)
+        }
+
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+    
+
+
+
+    
 
 
     
