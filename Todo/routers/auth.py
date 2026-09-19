@@ -15,8 +15,41 @@ class CreateUserRequest(BaseModel):
     password: str
     role: str
 
+class UpdatePasswordRequest(BaseModel):
+    password: str
+
 connection = None
 cursor = None
+
+@router.get("/auth")
+async def get_all_users():
+
+    connection=get_connection()
+    cursor=connection.cursor()
+
+    try:
+        cursor.execute(
+            '''
+            select * from users
+            '''
+        )
+        user = cursor.fetchall()
+
+        return user
+
+    except Exception as e:
+        return{
+            "error": str(e)
+        }
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
 
 @router.get("/auth/{id}")
 async def get_user(id: int):
@@ -34,6 +67,11 @@ async def get_user(id: int):
 
         user = cursor.fetchone()
 
+        if user is None:
+            return {
+                "error": "User not found"
+                }
+        
         return user
 
     except Exception as e:
@@ -102,6 +140,52 @@ async def create_user(create_user_request: CreateUserRequest):
 
         if connection:
             connection.close()
+
+@router.put("/auth/{id}")
+async def update_password_by_id(id:int,update_request:UpdatePasswordRequest):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+
+        hashed_password = bcrypt_context.hash(update_request.password)
+        cursor.execute(
+            '''
+            update users
+            set hashed_password =%s
+            where id = %s
+            returning id, username, email, role, is_active
+            ''',
+            (hashed_password,id)
+        )
+
+        user = cursor.fetchone()
+
+        if user is None:
+            return{
+                "Message":"Used not found"
+            }
+
+        connection.commit()
+
+        return user
+    
+    except Exception as e:
+        return{
+            "error": str(e)
+        }
+        
+    finally:
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+    
+
+
+
 
 
 
