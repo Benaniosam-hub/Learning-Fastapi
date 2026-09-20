@@ -1,4 +1,3 @@
-
 # class outer():
 #     def __init__(self):
 #         self.name = "bena"
@@ -73,6 +72,24 @@
 # with open("sim.txt", "r")as file:
 #     content = file.read()
 #     print(content)
-numbers = [1,2,3,4]
-start = list(filter(lambda x:x%2==0, numbers))
-print(start)
+# numbers = [1,2,3,4]
+# start = list(filter(lambda x:x%2==0, numbers))
+# print(start)
+
+# for i in range(1,11):
+#     print(f"5 x {i} = {i * 5}")
+
+        
+# RECURRSION 
+# def normal_func(n):
+#       if n == 0:  #its base condition
+#             return
+#       print(n)
+#       normal_func(n-1)
+
+# normal_func(5)
+
+for i in range(3):
+      print(i)
+else:
+      print("done")
