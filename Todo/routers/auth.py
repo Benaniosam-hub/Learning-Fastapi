@@ -182,6 +182,40 @@ async def update_password_by_id(id:int,update_request:UpdatePasswordRequest):
 
         if connection:
             connection.close()
+
+@router.delete("/auth/{id}")
+async def delete_user_by_id(id: int):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+        cursor.execute(
+            '''
+            delete from users where id = %s
+            ''',
+            (id,)
+        )
+
+        connection.commit()
+
+        return{
+            "message": "User deleted successfully"
+        }
+
+    except Exception as e:
+        return{
+            "error":str(e)
+        }
+
+    finally:
+
+        if cursor:
+            cursor.close()
+
+        if connection:
+            connection.close()
+
     
 
 
