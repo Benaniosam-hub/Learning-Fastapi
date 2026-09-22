@@ -224,16 +224,3 @@ async def delete_user_by_id(id: int):
 
 
 
-# SECRET_KEY = "my-secret-key"
-# ALGORITHM = "HS256"
-
-# bcrypt_context = CryptContext(
-#     schemes = ["bcrypt"],
-#     deprecated = "auto"
-# )
-
-# def verify_password(plain_password, hashed_password):
-#     return bcrypt_context.verify(
-#         plain_password,
-#         hashed_password
-#     )
