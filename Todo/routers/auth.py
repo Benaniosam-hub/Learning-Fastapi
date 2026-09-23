@@ -1,11 +1,22 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from database import get_connection
 from passlib.context import CryptContext
 
+from routers.authz import require_admin
+
+
 router = APIRouter()
 
-bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+bcrypt_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto"
+)
+
+
+# =========================================================
+# Request Models
+# =========================================================
 
 class CreateUserRequest(BaseModel):
     username: str
@@ -15,90 +26,157 @@ class CreateUserRequest(BaseModel):
     password: str
     role: str
 
+
 class UpdatePasswordRequest(BaseModel):
     password: str
 
-connection = None
-cursor = None
+
+# =========================================================
+# GET ALL USERS
+# ADMIN ONLY
+# =========================================================
 
 @router.get("/auth")
-async def get_all_users():
-
-    connection=get_connection()
-    cursor=connection.cursor()
-
-    try:
-        cursor.execute(
-            '''
-            select * from users
-            '''
-        )
-        user = cursor.fetchall()
-
-        return user
-
-    except Exception as e:
-        return{
-            "error": str(e)
-        }
-
-    finally:
-
-        if cursor:
-            cursor.close()
-
-        if connection:
-            connection.close()
-
-
-@router.get("/auth/{id}")
-async def get_user(id: int):
+async def get_all_users(
+    current_user: dict = Depends(require_admin)
+):
 
     connection = get_connection()
     cursor = connection.cursor()
 
     try:
+
         cursor.execute(
-            '''
-            select * from users where id = %s
-            ''',
+            """
+            SELECT
+                id,
+                username,
+                email,
+                first_name,
+                last_name,
+                role,
+                is_active
+            FROM users
+            ORDER BY id
+            """
+        )
+
+        rows = cursor.fetchall()
+
+        columns = [
+            column[0]
+            for column in cursor.description
+        ]
+
+        users = [
+            dict(zip(columns, row))
+            for row in rows
+        ]
+
+        return users
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch users"
+        )
+
+    finally:
+
+        cursor.close()
+        connection.close()
+
+
+# =========================================================
+# GET USER BY ID
+# ADMIN ONLY
+# =========================================================
+
+@router.get("/auth/{id}")
+async def get_user(
+    id: int,
+    current_user: dict = Depends(require_admin)
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+
+        cursor.execute(
+            """
+            SELECT
+                id,
+                username,
+                email,
+                first_name,
+                last_name,
+                role,
+                is_active
+            FROM users
+            WHERE id = %s
+            """,
             (id,)
         )
 
-        user = cursor.fetchone()
+        row = cursor.fetchone()
 
-        if user is None:
-            return {
-                "error": "User not found"
-                }
-        
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+
+        columns = [
+            column[0]
+            for column in cursor.description
+        ]
+
+        user = dict(zip(columns, row))
+
         return user
 
-    except Exception as e:
-        return{
-            "error":str(e)
-        }
+    except HTTPException:
+        raise
+
+    except Exception:
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch user"
+        )
 
     finally:
-        if cursor:
-            cursor.close()
 
-        if connection:
-            connection.close()
+        cursor.close()
+        connection.close()
 
-        
+
+# =========================================================
+# CREATE USER
+# ADMIN ONLY
+# =========================================================
 
 @router.post("/auth")
-async def create_user(create_user_request: CreateUserRequest):
+async def create_user(
+    create_user_request: CreateUserRequest,
+    current_user: dict = Depends(require_admin)
+):
 
     connection = get_connection()
     cursor = connection.cursor()
 
-    hashed_password = bcrypt_context.hash(create_user_request.password)
-
     try:
-        cursor.execute( '''
-            insert into users
+
+        # Hash password
+        hashed_password = bcrypt_context.hash(
+            create_user_request.password
+        )
+
+        cursor.execute(
+            """
+            INSERT INTO users
             (
                 email,
                 username,
@@ -108,119 +186,199 @@ async def create_user(create_user_request: CreateUserRequest):
                 hashed_password,
                 is_active
             )
-            Values
-            (%s,%s,%s,%s,%s,%s,%s)
-            returning *
-        ''',
-        (create_user_request.email,
-         create_user_request.username,
-         create_user_request.first_name,
-         create_user_request.last_name,
-         create_user_request.role,
-         hashed_password,
-         True
-         )
+            VALUES
+            (%s, %s, %s, %s, %s, %s, %s)
+            RETURNING
+                id,
+                username,
+                email,
+                first_name,
+                last_name,
+                role,
+                is_active
+            """,
+            (
+                create_user_request.email,
+                create_user_request.username,
+                create_user_request.first_name,
+                create_user_request.last_name,
+                create_user_request.role,
+                hashed_password,
+                True
+            )
         )
 
         row = cursor.fetchone()
 
         connection.commit()
 
-        return row
+        columns = [
+            column[0]
+            for column in cursor.description
+        ]
+
+        user = dict(zip(columns, row))
+
+        return {
+            "message": "User created successfully",
+            "user": user
+        }
 
     except Exception as e:
-        return{
-            "error": str(e)
-        }
+
+        connection.rollback()
+
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
 
     finally:
 
-        if cursor:
-            cursor.close()
+        cursor.close()
+        connection.close()
 
-        if connection:
-            connection.close()
+
+# =========================================================
+# UPDATE USER PASSWORD
+# ADMIN ONLY
+# =========================================================
 
 @router.put("/auth/{id}")
-async def update_password_by_id(id:int,update_request:UpdatePasswordRequest):
+async def update_password_by_id(
+    id: int,
+    update_request: UpdatePasswordRequest,
+    current_user: dict = Depends(require_admin)
+):
 
     connection = get_connection()
     cursor = connection.cursor()
 
     try:
 
-        hashed_password = bcrypt_context.hash(update_request.password)
+        # Hash new password
+        hashed_password = bcrypt_context.hash(
+            update_request.password
+        )
+
         cursor.execute(
-            '''
-            update users
-            set hashed_password =%s
-            where id = %s
-            returning id, username, email, role, is_active
-            ''',
-            (hashed_password,id)
+            """
+            UPDATE users
+            SET hashed_password = %s
+            WHERE id = %s
+            RETURNING
+                id,
+                username,
+                email,
+                role,
+                is_active
+            """,
+            (
+                hashed_password,
+                id
+            )
         )
 
         user = cursor.fetchone()
 
         if user is None:
-            return{
-                "Message":"Used not found"
-            }
+
+            connection.rollback()
+
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
 
         connection.commit()
 
-        return user
-    
-    except Exception as e:
-        return{
-            "error": str(e)
-        }
-        
-    finally:
-        if cursor:
-            cursor.close()
+        columns = [
+            column[0]
+            for column in cursor.description
+        ]
 
-        if connection:
-            connection.close()
+        updated_user = dict(zip(columns, user))
+
+        return {
+            "message": "Password updated successfully",
+            "user": updated_user
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception:
+
+        connection.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update password"
+        )
+
+    finally:
+
+        cursor.close()
+        connection.close()
+
+
+# =========================================================
+# DELETE USER
+# ADMIN ONLY
+# =========================================================
 
 @router.delete("/auth/{id}")
-async def delete_user_by_id(id: int):
+async def delete_user_by_id(
+    id: int,
+    current_user: dict = Depends(require_admin)
+):
 
     connection = get_connection()
     cursor = connection.cursor()
 
     try:
+
         cursor.execute(
-            '''
-            delete from users where id = %s
-            ''',
+            """
+            DELETE FROM users
+            WHERE id = %s
+            RETURNING id
+            """,
             (id,)
         )
 
+        deleted_user = cursor.fetchone()
+
+        if deleted_user is None:
+
+            connection.rollback()
+
+            raise HTTPException(
+                status_code=404,
+                detail="User not found"
+            )
+
         connection.commit()
 
-        return{
-            "message": "User deleted successfully"
+        return {
+            "message": "User deleted successfully",
+            "user_id": deleted_user[0],
+            "deleted_by": current_user["user_id"]
         }
 
-    except Exception as e:
-        return{
-            "error":str(e)
-        }
+    except HTTPException:
+        raise
+
+    except Exception:
+
+        connection.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete user"
+        )
 
     finally:
 
-        if cursor:
-            cursor.close()
-
-        if connection:
-            connection.close()
-
-    
-
-
-
-
-
-
-
+        cursor.close()
+        connection.close()
