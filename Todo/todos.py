@@ -1,495 +1,463 @@
-from fastapi import FastAPI
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+
 from database import get_connection
-from routers import auth
+from routers.authz import get_current_user, require_admin
 
-app = FastAPI()
-app.include_router(auth.router)
 
-connection = None
-cursor = None
+router = APIRouter()
 
+
+# =========================================================
+# Pydantic Models
+# =========================================================
 
 class Todo(BaseModel):
     title: str
     description: str
     priority: int
     complete: bool
-    owner_id: int
+
 
 class TodoUpdate(BaseModel):
     title: str
 
-@app.get("/")
+
+# =========================================================
+# Home
+# =========================================================
+
+@router.get("/")
 def home():
     return {
         "message": "FastAPI is running"
     }
 
 
-@app.get("/todos") #Get all values
-async def get_todos():
+# =========================================================
+# GET TODOS
+# USER  -> Only their own todos
+# ADMIN -> All todos
+# =========================================================
+
+@router.get("/todos")
+async def get_todos(
+    current_user: dict = Depends(get_current_user)
+):
 
     connection = get_connection()
     cursor = connection.cursor()
 
     try:
 
-        cursor.execute("SELECT * FROM todos")
+        # -----------------------------------------
+        # ADMIN: Get all todos
+        # -----------------------------------------
 
-        todo = cursor.fetchall()
-        return todo
+        if current_user["role"] == "admin":
 
-    except Exception as e:
+            cursor.execute(
+                """
+                SELECT *
+                FROM todos
+                ORDER BY id
+                """
+            )
 
-        return {
-            "error": str(e)
-        }
+        # -----------------------------------------
+        # USER: Get only own todos
+        # -----------------------------------------
 
-    finally:
-        cursor.close()
-        connection.close()
+        else:
 
-    
+            cursor.execute(
+                """
+                SELECT *
+                FROM todos
+                WHERE owner_id = %s
+                ORDER BY id
+                """,
+                (current_user["user_id"],)
+            )
 
-@app.get("/todos/{id}") #PATH PARAMETER
-async def get_todos_by_id(id: int):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    try:
-        cursor.execute("SELECT * FROM todos WHERE id = %s",(id,))
-
-        row = cursor.fetchone()
-
-        if row is None:
-            return {
-                "message": "todos not found"
-            }
+        rows = cursor.fetchall()
 
         columns = [column[0] for column in cursor.description]
 
-        todo = dict(zip(columns, row))
+        todos = [
+            dict(zip(columns, row))
+            for row in rows
+        ]
 
-        return todo
+        return todos
 
-    except Exception as e:
-        return {
-            "error": str(e)
-        }
-
-    finally:
-        cursor.close()
-        connection.close()
-
-@app.get("/todos/") # Query Parameter
-async def get_todos_by_title(title: str):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    try:  
-        cursor.execute(
-            "select * from todos where title = %s",
-            (title,) # doubt 
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch todos"
         )
 
-        row = cursor.fetchone()
-
-        if row is None:
-            return {
-                "message": "todos not found"
-            }
-
-        columns = [column[0] for column in cursor.description]
-        
-        todo = dict(zip(columns, row))
-        
-        return todo
-        
-    except Exception as e:
-        return {
-            "error": str(e)
-            }
-        
     finally:
+
         cursor.close()
         connection.close()
 
 
+# =========================================================
+# SEARCH TODO BY TITLE
+#
+# USER  -> Search only own todos
+# ADMIN -> Search all todos
+# =========================================================
 
-@app.post("/todos/create_todos")
-async def create_todos(todo: Todo):
+@router.get("/todos/search")
+async def get_todo_by_title(
+    title: str,
+    current_user: dict = Depends(get_current_user)
+):
 
     connection = get_connection()
     cursor = connection.cursor()
 
     try:
+
+        if current_user["role"] == "admin":
+
+            cursor.execute(
+                """
+                SELECT *
+                FROM todos
+                WHERE title = %s
+                """,
+                (title,)
+            )
+
+        else:
+
+            cursor.execute(
+                """
+                SELECT *
+                FROM todos
+                WHERE title = %s
+                AND owner_id = %s
+                """,
+                (
+                    title,
+                    current_user["user_id"]
+                )
+            )
+
+        rows = cursor.fetchall()
+
+        columns = [column[0] for column in cursor.description]
+
+        todos = [
+            dict(zip(columns, row))
+            for row in rows
+        ]
+
+        return todos
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to search todos"
+        )
+
+    finally:
+
+        cursor.close()
+        connection.close()
+
+
+# =========================================================
+# GET TODO BY ID
+#
+# USER  -> Can get only their own todo
+# ADMIN -> Can get any todo
+# =========================================================
+
+@router.get("/todos/{id}")
+async def get_todo_by_id(
+    id: int,
+    current_user: dict = Depends(get_current_user)
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+
+        # -----------------------------------------
+        # ADMIN: Can access any todo
+        # -----------------------------------------
+
+        if current_user["role"] == "admin":
+
+            cursor.execute(
+                """
+                SELECT *
+                FROM todos
+                WHERE id = %s
+                """,
+                (id,)
+            )
+
+        # -----------------------------------------
+        # USER: Can access only own todo
+        # -----------------------------------------
+
+        else:
+
+            cursor.execute(
+                """
+                SELECT *
+                FROM todos
+                WHERE id = %s
+                AND owner_id = %s
+                """,
+                (
+                    id,
+                    current_user["user_id"]
+                )
+            )
+
+        row = cursor.fetchone()
+
+        if row is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Todo not found"
+            )
+
+        columns = [column[0] for column in cursor.description]
+
+        todo = dict(zip(columns, row))
+
+        return todo
+
+    except HTTPException:
+        raise
+
+    except Exception:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to fetch todo"
+        )
+
+    finally:
+
+        cursor.close()
+        connection.close()
+
+
+
+# =========================================================
+# CREATE TODO
+#
+# USER  -> Can create own todo
+# ADMIN -> Can create todo
+#
+# owner_id comes from JWT
+# NOT from Postman
+# =========================================================
+
+@router.post("/todos/create_todos")
+async def create_todos(
+    todo: Todo,
+    current_user: dict = Depends(get_current_user)
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+
         cursor.execute(
-            '''
-            insert into todos
-            (title,description,priority,complete,owner_id)
-            values
-            (%s,%s,%s,%s,%s)
-            ''',
+            """
+            INSERT INTO todos
+            (
+                title,
+                description,
+                priority,
+                complete,
+                owner_id
+            )
+            VALUES
+            (%s, %s, %s, %s, %s)
+            RETURNING *
+            """,
             (
                 todo.title,
                 todo.description,
                 todo.priority,
                 todo.complete,
-                todo.owner_id
 
+                # IMPORTANT:
+                # owner_id comes from JWT
+                current_user["user_id"]
             )
         )
 
+        row = cursor.fetchone()
+
         connection.commit()
 
-        return {
-            "message": "Todo created successfully"
-        }
-    
-    except Exception as e:
+        columns = [column[0] for column in cursor.description]
+
+        created_todo = dict(zip(columns, row))
 
         return {
-            "error": str(e)
+            "message": "Todo created successfully",
+            "todo": created_todo
         }
 
-    finally:
+    except Exception:
+        connection.rollback()
 
-        if cursor:
-            cursor.close()
-
-        if connection:
-            connection.close()
-
-
-
-@app.put("/todos/{id}")
-async def update_todos_title_by_id(id: int, todo: TodoUpdate):
-
-    connection = get_connection()
-    cursor = connection.cursor()
-
-    try:
-        cursor.execute(
-            '''
-            update todos set title = %s where id = %s
-            ''',
-            (todo.title,id)
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to create todo"
         )
 
-        connection.commit()
-
-        return {
-            "message": "Successfully updated!"
-        }
-
-    except Exception as e:
-        return { 
-            "error": str(e)
-        }
-
     finally:
 
-        if cursor:
-            cursor.close()
-
-        if connection:
-            connection.close()
+        cursor.close()
+        connection.close()
 
 
+# =========================================================
+# UPDATE TODO
+#
+# ADMIN ONLY
+# =========================================================
 
-@app.delete("/todos/{id}")
-async def delete_todos_by_id(id: int):
+@router.put("/todos/{id}")
+async def update_todos_title_by_id(
+    id: int,
+    todo: TodoUpdate,
+    current_user: dict = Depends(require_admin)
+):
 
     connection = get_connection()
     cursor = connection.cursor()
 
     try:
+
         cursor.execute(
-            '''
-            delete from todos where id = %s
-            ''',
+            """
+            UPDATE todos
+            SET title = %s
+            WHERE id = %s
+            RETURNING *
+            """,
+            (
+                todo.title,
+                id
+            )
+        )
+
+        row = cursor.fetchone()
+
+        if row is None:
+
+            connection.rollback()
+
+            raise HTTPException(
+                status_code=404,
+                detail="Todo not found"
+            )
+
+        connection.commit()
+
+        columns = [column[0] for column in cursor.description]
+
+        updated_todo = dict(zip(columns, row))
+
+        return {
+            "message": "Todo updated successfully",
+            "todo": updated_todo,
+            "updated_by": current_user["user_id"],
+            "role": current_user["role"]
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception:
+
+        connection.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to update todo"
+        )
+
+    finally:
+
+        cursor.close()
+        connection.close()
+
+
+# =========================================================
+# DELETE TODO
+#
+# ADMIN ONLY
+# =========================================================
+
+@router.delete("/todos/{id}")
+async def delete_todos_by_id(
+    id: int,
+    current_user: dict = Depends(require_admin)
+):
+
+    connection = get_connection()
+    cursor = connection.cursor()
+
+    try:
+
+        cursor.execute(
+            """
+            DELETE FROM todos
+            WHERE id = %s
+            RETURNING id
+            """,
             (id,)
-
         )
+
+        deleted_todo = cursor.fetchone()
+
+        if deleted_todo is None:
+
+            connection.rollback()
+
+            raise HTTPException(
+                status_code=404,
+                detail="Todo not found"
+            )
 
         connection.commit()
 
         return {
-            "message": "Todos deleted successfully"
+            "message": "Todo deleted successfully",
+            "todo_id": deleted_todo[0],
+            "deleted_by": current_user["user_id"],
+            "role": current_user["role"]
         }
 
-    except Exception as e:
-        return{
-            "error": str(e)
-        }
+    except HTTPException:
+        raise
+
+    except Exception:
+
+        connection.rollback()
+
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to delete todo"
+        )
 
     finally:
 
-        if cursor:
-            cursor.close()
-
-        if connection:
-            connection.close()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# from fastapi import FastAPI
-# from pydantic import BaseModel
-# from database import get_connection
-
-# app = FastAPI()
-
-# connection = None
-# cursor = None
-
-
-# class Todo(BaseModel):
-#     title: str
-#     description: str
-#     priority: int
-#     complete: bool
-#     owner_id: int
-
-# class UpdateTodo(BaseModel):
-#     title: str
-
-# #CHECKING CONNECTION:
-# @app.get("/")
-# def home():
-#     return {
-#         "Connected successfully"
-#     }
-
-
-# #GET ALL TODOS
-# @app.get("/todos")
-# async def get_todos():
-
-#     connection = get_connection()
-#     cursor = connection.cursor()
-
-#     try:
-
-#         cursor.execute('select * from todos;')
-
-#         row = cursor.fetchall()
-
-#         return row
-    
-#     except Exception as e:
-#         return {
-#             "error": str(e)
-#         }
-
-#     finally:
-
-#         if cursor:
-#             cursor.close()
-
-#         if connection:
-#             cursor.close()
-
-
-# #GET TODOS BY QUERY PARAMETER
-# @app.get("/todos/")
-# async def get_todos_by_query(title: str):
-
-#     connection = get_connection()
-#     cursor = connection.cursor()
-
-#     try:
-
-#         cursor.execute(
-#             'select * from todos where title =%s',
-#             (title,)
-#             )
-#         row = cursor.fetchone()
-
-#         column =[column[0] for column in cursor.description]
-
-#         todo = dict(zip(column,row))
-
-#         return todo
-
-#     except Exception as e:
-#         return{
-#             "error": str(e)
-#         }
-
-#     finally:
-#         if cursor:
-#             cursor.close()
-
-#         if connection:
-#             cursor.close()
-
-
-# #GET TODOS BY PATH PARAMETER
-# @app.get("/todos/{id}")
-# async def get_todos_by_id(id:int):
-#     connection = get_connection()
-#     cursor = connection.cursor()
-
-#     try:
-#         cursor.execute(
-#             'select * from todos where id =%s',
-#             (id,)
-#         )
-
-#         row = cursor.fetchone()
-
-#         column = [column[0] for column in cursor.description]
-
-#         todo = dict(zip(column,row))
-
-#         return todo
-
-#     except Exception as e:
-#         return{
-#             "error": str(e)
-#         }
-
-#     finally:
-#         if cursor:
-#             cursor.close()
-
-#         if connection:
-#             connection.close()
-
-
-# #POST CREATE NEW TODOS
-# @app.post("/todos/create_todo")
-# async def create_todos(todo: Todo):
-
-#     connection= get_connection()
-#     cursor=connection.cursor()
-
-#     try:
-
-#         cursor.execute(
-#             '''
-#             insert into todos
-#             (title,description,priority,complete,owner_id)
-#             values(%s,%s,%s,%s,%s)
-#             ''',
-#             (todo.title,
-#              todo.description,
-#              todo.priority,
-#              todo.complete,
-#              todo.owner_id)
-#         )
-
-#         connection.commit()
-
-#         return{
-#             "message":"todos created successfully"
-#         }
-
-#     except Exception as e:
-#         return{
-#             "error":str(e)
-#         }
-
-#     finally:
-
-#         if cursor:
-#             cursor.close()
-
-#         if connection:
-#             connection.close()
-
-
-# #UPDATE EXISTING TODOS
-# @app.put("/todos/{id}")
-# async def update_todos_title_by_id(id:int, todo:UpdateTodo):
-
-#     connection= get_connection()
-#     cursor = connection.cursor()
-
-#     try:
-#         cursor.execute(
-#             '''
-#             update todos set title = %s where id = %s
-#             ''' ,
-#             (todo.title,id)
-#         )
-
-#         connection.commit()
-
-#         return{
-#             "message": "todos updated successfully"
-#         }
-
-#     except Exception as e:
-#         return{
-#             "error": str(e)
-#         }
-
-#     finally:
-#         if cursor:
-#             cursor.close()
-
-#         if connection:
-#             connection.close()
-
-
-# #DELETE TODOS
-# @app.delete("/todos/{id}")
-# async def delete_todos_by_id(id:int):
-
-#     connection=get_connection()
-#     cursor=connection.cursor()
-
-#     try:
-#         cursor.execute(
-#             '''
-#             delete from todos where id =%s
-#             ''',
-#             (id,)
-#         )
-
-#         connection.commit()
-
-#         return{
-#             "message": "todos deleted successfully"
-#         }
-
-#     except Exception as e:
-#         return{
-#             "error": str(e)
-#         }
-
-#     finally:
-#         if cursor:
-#             cursor.close()
-
-#         if connection:
-#             connection.close()
-    
-
-
-
-    
-
-
-    
+        cursor.close()
+        connection.close()
