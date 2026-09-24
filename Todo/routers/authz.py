@@ -1,8 +1,6 @@
 from datetime import datetime, timedelta, timezone
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-
 from jose import jwt, JWTError
 from passlib.context import CryptContext
 
@@ -15,29 +13,21 @@ SECRET_KEY = "my-secret-key"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-oauth2_scheme = OAuth2PasswordBearer(
-    tokenUrl="login"
-)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 # =========================================================
 # Password Hashing
 # =========================================================
 
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto"
-)
+pwd_context = CryptContext(schemes=["bcrypt"],deprecated="auto")
 
 
 # =========================================================
 # Verify Password
 # =========================================================
 
-def verify_password(
-    plain_password: str,
-    hashed_password: str
-) -> bool:
+def verify_password(plain_password: str,hashed_password: str) -> bool:
 
     return pwd_context.verify(
         plain_password,
@@ -49,16 +39,10 @@ def verify_password(
 # Create JWT Access Token
 # =========================================================
 
-def create_access_token(
-    user_id: int,
-    role: str
-) -> str:
+def create_access_token(user_id: int,role: str) -> str:
 
     expire = (
-        datetime.now(timezone.utc)
-        + timedelta(
-            minutes=ACCESS_TOKEN_EXPIRE_MINUTES
-        )
+        datetime.now(timezone.utc)+ timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     )
 
     payload = {
@@ -80,9 +64,7 @@ def create_access_token(
 # Get Current Authenticated User
 # =========================================================
 
-def get_current_user(
-    token: str = Depends(oauth2_scheme)
-):
+def get_current_user(token: str = Depends(oauth2_scheme)):
 
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -128,9 +110,7 @@ def get_current_user(
 # Require Admin
 # =========================================================
 
-def require_admin(
-    current_user: dict = Depends(get_current_user)
-):
+def require_admin(current_user: dict = Depends(get_current_user)):
 
     if current_user["role"] != "admin":
 

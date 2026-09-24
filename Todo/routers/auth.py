@@ -37,9 +37,7 @@ class UpdatePasswordRequest(BaseModel):
 # =========================================================
 
 @router.get("/auth")
-async def get_all_users(
-    current_user: dict = Depends(require_admin)
-):
+async def get_all_users(current_user: dict = Depends(require_admin)):
 
     connection = get_connection()
     cursor = connection.cursor()
