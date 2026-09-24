@@ -48,54 +48,50 @@ async def login_with_username_pwd(data: LoginRequest):
 
         user = cursor.fetchone()
 
+        # User does not exist
+        if user is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid username or password"
+            )
+
+        # Extract user information
+        user_id = user[0]
+        username = user[1]
+        hashed_password = user[2]
+        is_active = user[3]
+        role = user[4]
+
+        # Check password
+        if not verify_password(
+            data.password,
+            hashed_password
+        ):
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid username or password"
+            )
+
+        # Check account status
+        if not is_active:
+            raise HTTPException(
+                status_code=403,
+                detail="User account is inactive"
+            )
+
+
+        # Create JWT token
+        token = create_access_token(
+            user_id=user_id,
+            role=role
+        )
+
+
+        return {
+            "access_token": token,
+            "token_type": "bearer"
+        }
+
     finally:
         cursor.close()
         connection.close()
-
-
-    # User does not exist
-    if user is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid username or password"
-        )
-
-
-    # Extract user information
-    user_id = user[0]
-    username = user[1]
-    hashed_password = user[2]
-    is_active = user[3]
-    role = user[4]
-
-
-    # Check password
-    if not verify_password(
-        data.password,
-        hashed_password
-    ):
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid username or password"
-        )
-
-
-    # Check account status
-    if not is_active:
-        raise HTTPException(
-            status_code=403,
-            detail="User account is inactive"
-        )
-
-
-    # Create JWT token
-    token = create_access_token(
-        user_id=user_id,
-        role=role
-    )
-
-
-    return {
-        "access_token": token,
-        "token_type": "bearer"
-    }

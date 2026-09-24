@@ -44,6 +44,13 @@ def home():
 async def get_todos(
     current_user: dict = Depends(get_current_user)
 ):
+    role = current_user.get("role")
+
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -115,6 +122,13 @@ async def get_todo_by_title(
     title: str,
     current_user: dict = Depends(get_current_user)
 ):
+    role = current_user.get("role")
+    
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
 
     connection = get_connection()
     cursor = connection.cursor()
