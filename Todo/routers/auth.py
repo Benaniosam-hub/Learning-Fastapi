@@ -39,6 +39,14 @@ class UpdatePasswordRequest(BaseModel):
 @router.get("/auth")
 async def get_all_users(current_user: dict = Depends(require_admin)):
 
+    role = current_user.get("role")
+    
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
+
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -96,6 +104,13 @@ async def get_user(
     id: int,
     current_user: dict = Depends(require_admin)
 ):
+    role = current_user.get("role")
+    
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -135,9 +150,6 @@ async def get_user(
 
         return user
 
-    except HTTPException:
-        raise
-
     except Exception:
 
         raise HTTPException(
@@ -161,7 +173,14 @@ async def create_user(
     create_user_request: CreateUserRequest,
     current_user: dict = Depends(require_admin)
 ):
-
+    role = current_user.get("role")
+    
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
+    
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -248,6 +267,13 @@ async def update_password_by_id(
     update_request: UpdatePasswordRequest,
     current_user: dict = Depends(require_admin)
 ):
+    role = current_user.get("role")
+    
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -302,9 +328,6 @@ async def update_password_by_id(
             "user": updated_user
         }
 
-    except HTTPException:
-        raise
-
     except Exception:
 
         connection.rollback()
@@ -330,7 +353,14 @@ async def delete_user_by_id(
     id: int,
     current_user: dict = Depends(require_admin)
 ):
-
+    role = current_user.get("role")
+    
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
+    
     connection = get_connection()
     cursor = connection.cursor()
 
@@ -363,9 +393,6 @@ async def delete_user_by_id(
             "user_id": deleted_user[0],
             "deleted_by": current_user["user_id"]
         }
-
-    except HTTPException:
-        raise
 
     except Exception:
 

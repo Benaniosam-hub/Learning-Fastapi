@@ -36,7 +36,6 @@ def home():
 
 # =========================================================
 # GET TODOS
-# USER  -> Only their own todos
 # ADMIN -> All todos
 # =========================================================
 
@@ -71,22 +70,6 @@ async def get_todos(
                 """
             )
 
-        # -----------------------------------------
-        # USER: Get only own todos
-        # -----------------------------------------
-
-        else:
-
-            cursor.execute(
-                """
-                SELECT *
-                FROM todos
-                WHERE owner_id = %s
-                ORDER BY id
-                """,
-                (current_user["user_id"],)
-            )
-
         rows = cursor.fetchall()
 
         columns = [column[0] for column in cursor.description]
@@ -113,7 +96,6 @@ async def get_todos(
 # =========================================================
 # SEARCH TODO BY TITLE
 #
-# USER  -> Search only own todos
 # ADMIN -> Search all todos
 # =========================================================
 
@@ -144,21 +126,6 @@ async def get_todo_by_title(
                 WHERE title = %s
                 """,
                 (title,)
-            )
-
-        else:
-
-            cursor.execute(
-                """
-                SELECT *
-                FROM todos
-                WHERE title = %s
-                AND owner_id = %s
-                """,
-                (
-                    title,
-                    current_user["user_id"]
-                )
             )
 
         rows = cursor.fetchall()
@@ -249,9 +216,6 @@ async def get_todo_by_id(
         todo = dict(zip(columns, row))
 
         return todo
-
-    except HTTPException:
-        raise
 
     except Exception:
         raise HTTPException(
@@ -352,6 +316,13 @@ async def update_todos_title_by_id(
     todo: TodoUpdate,
     current_user: dict = Depends(require_admin)
 ):
+    role = current_user.get("role")
+    
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -395,9 +366,6 @@ async def update_todos_title_by_id(
             "role": current_user["role"]
         }
 
-    except HTTPException:
-        raise
-
     except Exception:
 
         connection.rollback()
@@ -424,6 +392,13 @@ async def delete_todos_by_id(
     id: int,
     current_user: dict = Depends(require_admin)
 ):
+    role = current_user.get("role")
+    
+    if role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Admin access required"
+        )
 
     connection = get_connection()
     cursor = connection.cursor()
@@ -458,9 +433,6 @@ async def delete_todos_by_id(
             "deleted_by": current_user["user_id"],
             "role": current_user["role"]
         }
-
-    except HTTPException:
-        raise
 
     except Exception:
 
