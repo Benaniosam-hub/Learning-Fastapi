@@ -8,19 +8,16 @@ from routers.authz import require_admin
 
 router = APIRouter()
 
-bcrypt_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto"
-)
+bcrypt_context = CryptContext(schemes=["bcrypt"],deprecated="auto")
 
-
+  
 # =========================================================
 # Request Models
 # =========================================================
 
 class CreateUserRequest(BaseModel):
     username: str
-    email: str
+    email: str 
     first_name: str
     last_name: str
     password: str
