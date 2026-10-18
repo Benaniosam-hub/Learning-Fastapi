@@ -1,0 +1,8 @@
+Roles & Responsibilities
+- Developed and maintained an MCP server using Python and FastMCP to enable AI-powered database interactions.
+- Integrated Claude Desktop with PostgreSQL to execute database operations through natural-language queries.
+- Designed and implemented SQL query validation and security mechanisms to prevent destructive operations such as DROP, TRUNCATE, and ALTER.
+- Developed backend logic for secure SQL query processing, validation, and execution.
+- Implemented error handling and input validation to ensure reliable database interactions.
+- Tested API/database workflows and validated CRUD operations and query execution for accuracy and reliability.
+- Followed secure coding practices to maintain controlled and safe database access.
